@@ -1,0 +1,81 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String     @id @default(uuid())
+  tg_user_id         String
+  name               String
+  surname            String
+  email              String     @unique
+  password           String
+  adress             String
+  phone_number       String
+  role               Role       @default(INDIVIDUAL)
+  permission         Permission
+  animals            Animal[]   @relation("UserAnimals")
+  publicated_animals Animal[]   @relation("PublicatedAnimals")
+  json_settings      Json
+}
+
+model Animal {
+  id           String   @id @default(uuid())
+  name         String?
+  breed        String?
+  age          Age
+  size         Size
+  fur          Fur
+  adress       String
+  description  String?
+  image_url    String[]
+  owner        User?    @relation("UserAnimals", fields: [ownerId], references: [id])
+  ownerId      String?
+  publicater   User     @relation("PublicatedAnimals", fields: [publicaterId], references: [id])
+  publicaterId String
+  createdAt         DateTime     @default(now())
+  status            AnimalStatus @default(AVAILABLE)
+  normilized_animal Json
+}
+
+enum Role {
+  ORGANIZATION
+  INDIVIDUAL
+}
+
+enum AnimalStatus {
+  AVAILABLE
+  ADOPTED
+}
+
+enum Permission {
+  SUPER_ADMIN
+  ADMIN
+  USER
+}
+
+enum Fur {
+  SHORT
+  MEDIUM
+  LONG
+  NO
+}
+
+enum Age {
+  PUPPY
+  YOUNG
+  ADULT
+  SENIOR
+}
+
+enum Size {
+  VERY_BIG
+  BIG
+  MEDIUM
+  SMALL
+  VERY_SMALL
+}
