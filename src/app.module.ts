@@ -31,7 +31,7 @@ import { DogSurvey } from './bot/user/bot.user.rec';
     ScheduleModule.forRoot(),
     RedisModule.forRoot({
       type: 'single',
-      url: 'redis://localhost:6379',
+      url: process.env.REDIS_URL,
     }),
     HttpModule,
     UserModule,
