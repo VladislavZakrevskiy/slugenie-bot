@@ -18,6 +18,29 @@ export class AnimalFormScene {
     ctx.scene.session.state = {};
   }
 
+  @Command('animal_done')
+  async onDone(@Ctx() ctx: SessionSceneContext) {
+    const state = ctx.scene.session.state as AnimalFormDto;
+
+    // Проверка наличия изображений
+    if (!state.image_url || state.image_url.length === 0) {
+      await ctx.reply('Вы не загрузили ни одного изображения. Пожалуйста, загрузите хотя бы одно.');
+      return;
+    }
+
+    // Создание животного в базе
+    const { message_id } = await ctx.reply('Загрузка, подождите ⌚');
+    const animal = await this.animalService.createAnimal({
+      ...state,
+      publicaterId: String(ctx.chat.id),
+    });
+    await ctx.deleteMessage(message_id);
+    await ctx.replyWithPhoto({ url: state.image_url[0] }, { caption: getDefaultText(animal), parse_mode: 'HTML' });
+
+    await ctx.reply('Данные о животном успешно сохранены!');
+    await ctx.scene.leave();
+  }
+
   @Command('cancel')
   async onCancel(@Ctx() ctx: SessionSceneContext) {
     await ctx.reply('Регистрация животного отменена.');
@@ -27,17 +50,22 @@ export class AnimalFormScene {
   @On('text')
   async onText(@Ctx() ctx: SessionSceneContext) {
     const state = ctx.scene.session.state as Partial<AnimalFormDto>;
+    const text = ctx.text;
 
-    // Шаг 1: Порода
+    // Шаг 1: Проверка породы
     if (!state.breed) {
-      state.breed = ctx.text;
-      await ctx.reply('Введите имя животного (или оставьте пустым):');
+      if (text.length < 2) {
+        await ctx.reply('Название породы должно содержать хотя бы 2 символа. Попробуйте снова:');
+        return;
+      }
+      state.breed = text;
+      await ctx.reply('Введите имя животного:');
       return;
     }
 
-    // Шаг 2: Имя
-    if (!state.name && state.name !== '') {
-      state.name = ctx.text || null;
+    // Шаг 2: Проверка имени
+    if (state.name === undefined) {
+      state.name = text || null;
       await ctx.reply(
         'Выберите возраст собаки:',
         Markup.keyboard([
@@ -49,14 +77,12 @@ export class AnimalFormScene {
           .resize()
           .oneTime(),
       );
-      await ctx.reply('Введите возраст животного:');
       return;
     }
 
-    // Шаг 3: Возраст
+    // Шаг 3: Проверка возраста
     if (!state.age) {
-      const ageText = ctx.text;
-      switch (ageText) {
+      switch (text) {
         case 'Щенок':
           state.age = $Enums.Age.PUPPY;
           break;
@@ -70,17 +96,7 @@ export class AnimalFormScene {
           state.age = $Enums.Age.SENIOR;
           break;
         default:
-          await ctx.reply(
-            'Выберите возраст собаки кнопкой:',
-            Markup.keyboard([
-              [Markup.button.text('Щенок')],
-              [Markup.button.text('Молодой/ая')],
-              [Markup.button.text('Взрослый/ая')],
-              [Markup.button.text('Старый/ая')],
-            ])
-              .resize()
-              .oneTime(),
-          );
+          await ctx.reply('Пожалуйста, выберите возраст из предложенных вариантов.');
           return;
       }
 
@@ -99,10 +115,9 @@ export class AnimalFormScene {
       return;
     }
 
-    // Шаг 4: Размер
+    // Шаг 4: Проверка размера
     if (!state.size) {
-      const sizeText = ctx.text;
-      switch (sizeText) {
+      switch (text) {
         case 'Очень большая':
           state.size = $Enums.Size.VERY_BIG;
           break;
@@ -119,18 +134,7 @@ export class AnimalFormScene {
           state.size = $Enums.Size.VERY_SMALL;
           break;
         default:
-          await ctx.reply(
-            'Выберите размер собаки кнопкой:',
-            Markup.keyboard([
-              [Markup.button.text('Очень большая')],
-              [Markup.button.text('Большая')],
-              [Markup.button.text('Средняя')],
-              [Markup.button.text('Маленькая')],
-              [Markup.button.text('Очень маленькая')],
-            ])
-              .resize()
-              .oneTime(),
-          );
+          await ctx.reply('Пожалуйста, выберите размер из предложенных вариантов.');
           return;
       }
 
@@ -148,10 +152,9 @@ export class AnimalFormScene {
       return;
     }
 
-    // Шаг 5: Шерсть
+    // Шаг 5: Проверка длины шерсти
     if (!state.fur) {
-      const furText = ctx.text;
-      switch (furText) {
+      switch (text) {
         case 'Длинная':
           state.fur = $Enums.Fur.LONG;
           break;
@@ -165,17 +168,7 @@ export class AnimalFormScene {
           state.fur = $Enums.Fur.NO;
           break;
         default:
-          await ctx.reply(
-            'Выберите длину шерсти собаки кнопкой:',
-            Markup.keyboard([
-              [Markup.button.text('Длинная')],
-              [Markup.button.text('Средняя')],
-              [Markup.button.text('Короткая')],
-              [Markup.button.text('Нет')],
-            ])
-              .resize()
-              .oneTime(),
-          );
+          await ctx.reply('Пожалуйста, выберите длину шерсти из предложенных вариантов.');
           return;
       }
 
@@ -183,18 +176,27 @@ export class AnimalFormScene {
       return;
     }
 
-    // Шаг 6: Описание
+    // Шаг 6: Проверка описания
     if (!state.description) {
-      state.description = ctx.text;
+      if (text.length < 5) {
+        await ctx.reply('Описание должно содержать хотя бы 5 символов.');
+        return;
+      }
+      state.description = text;
       await ctx.reply('Введите адрес, где находится животное:');
       return;
     }
 
-    // Шаг 7: Адрес
+    // Шаг 7: Проверка адреса
     if (!state.adress) {
-      state.adress = ctx.text;
-      await ctx.reply('Отправьте изображение животного (можно отправить несколько, используйте /done для завершения):');
-      return;
+      if (text.length < 10) {
+        await ctx.reply('Адрес должен содержать хотя бы 10 символов.');
+        return;
+      }
+      state.adress = text;
+      await ctx.reply(
+        'Отправьте изображение животного (можно отправить несколько, используйте /animal_done для завершения):',
+      );
     }
   }
 
@@ -214,32 +216,8 @@ export class AnimalFormScene {
 
     state.image_url.push(fileUrl.toString());
 
-    await ctx.reply('Изображение загружено. Отправьте еще одно или введите /done для завершения.');
-  }
-
-  @Command('done')
-  async onDone(@Ctx() ctx: SessionSceneContext) {
-    const state = ctx.scene.session.state as AnimalFormDto;
-    console.log(state);
-
-    if (state.image_url.length === 0) {
-      await ctx.reply('Вы не загрузили ни одного изображения. Пожалуйста, загрузите хотя бы одно.');
-      return;
-    }
-
-    const animal = await this.animalService.createAnimal(state);
-    const images: { type: 'photo'; media: string; parse_mode?: 'HTML'; caption?: string }[] = state.image_url.map(
-      (url, i) => ({
-        type: 'photo',
-        media: url,
-        caption: i === 0 ? getDefaultText(animal) : undefined,
-        parse_mode: i === 0 ? 'HTML' : undefined,
-      }),
+    await ctx.reply(
+      'Изображение загружено. Отправьте еще одно чтобы заменить или введите /animal_done для завершения.',
     );
-
-    await ctx.telegram.sendMediaGroup(ctx.chat.id, images);
-
-    await ctx.reply('Данные о животном успешно сохранены!');
-    await ctx.scene.leave();
   }
 }

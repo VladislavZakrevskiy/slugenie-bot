@@ -9,6 +9,7 @@ import { getRedisKeys } from 'src/core/redis/redisKeys';
 import { ListManager } from 'src/core/helpers/ListManager';
 import { getDefaultText } from 'src/core/helpers/getDefaultText';
 import { getTelegramImage } from 'src/core/helpers/getTelegramImage';
+import { CallbackQuery } from 'telegraf/typings/core/types/typegram';
 
 @Injectable()
 @Update()
@@ -23,7 +24,7 @@ export class UserProfileService {
   async getListManager(ctx: SessionSceneContext, type: $Enums.AnimalStatus) {
     const currentIndex = Number(await this.redis.get(getRedisKeys('currentIndex_animal', type, ctx.chat.id)));
     const user_id = await this.redis.get(getRedisKeys('user_id', ctx.chat.id));
-    const animals = await this.animalService.getAllAnimals({ status: type, ownerId: user_id });
+    const animals = await this.animalService.getAllAnimals({ status: type, publicaterId: user_id });
     const listManager = new ListManager(
       this.redis,
       animals,
@@ -88,4 +89,34 @@ export class UserProfileService {
   }
 
   // TODO Next/prev
+  @Action(/^next_currentIndex_animal_.*/)
+  async next_animal(@Ctx() ctx: SessionSceneContext) {
+    const prefix = (ctx.callbackQuery as CallbackQuery.DataQuery).data.split('_')?.[3] as $Enums.AnimalStatus;
+    const { listManager, currentIndex, animals } = await this.getListManager(ctx, prefix);
+
+    console.log('next', currentIndex, animals.length);
+    if (currentIndex < animals.length - 1) {
+      console.log('1');
+      await this.redis.set(getRedisKeys('currentIndex_animal', listManager.prefix, ctx.chat.id), currentIndex + 1);
+      console.log('2');
+      await listManager.editMessage();
+      console.log('3');
+    } else {
+      await ctx.answerCbQuery('Нет следующего элемента');
+    }
+  }
+
+  @Action(/^prev_currentIndex_animal_.*/)
+  public async handlePrev(@Ctx() ctx: SessionSceneContext): Promise<void> {
+    const prefix = (ctx.callbackQuery as CallbackQuery.DataQuery).data.split('_')?.[3] as $Enums.AnimalStatus;
+    const { listManager, currentIndex } = await this.getListManager(ctx, prefix);
+
+    console.log('prev', currentIndex);
+    if (currentIndex > 0) {
+      await this.redis.set(getRedisKeys('currentIndex_animal', listManager.prefix, ctx.chat.id), currentIndex - 1);
+      await listManager.editMessage();
+    } else {
+      await ctx.answerCbQuery('Нет предыдущего элемента');
+    }
+  }
 }

@@ -16,9 +16,10 @@ import { AnimalFormScene } from './bot/animal/bot.animal.create';
 import { BotUserService } from './bot/user/bot.user.auth';
 import { UserProfileService } from './bot/user/bot.user.profile';
 import { HttpModule } from '@nestjs/axios';
-import { DogApiService } from './dog_api/dog_api.service';
 import { AnimalList } from './bot/animal/animal.list';
 import { DogRecommender } from './animals/recomendations/DogRecmender';
+import { DogNormalizer } from './animals/recomendations/DogNormalizer';
+import { DogSurvey } from './bot/user/bot.user.rec';
 
 @Module({
   imports: [
@@ -43,13 +44,14 @@ import { DogRecommender } from './animals/recomendations/DogRecmender';
     AnimalList,
     BotUserService,
     DogRecommender,
+    DogSurvey,
     // Scenes
     LoginScene,
     RegisterScene,
     AnimalFormScene,
     // Helpers
     RedisService,
-    DogApiService,
+    DogNormalizer,
     // Guards
     AuthGuard,
     RolesGuard,

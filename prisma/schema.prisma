@@ -20,7 +20,8 @@ model User {
   permission         Permission
   animals            Animal[]   @relation("UserAnimals")
   publicated_animals Animal[]   @relation("PublicatedAnimals")
-  json_settings      Json
+  is_notifications Boolean @default(true)
+  preferences Json? @db.Json 
 }
 
 model Animal {

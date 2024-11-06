@@ -76,7 +76,7 @@ export class ListManager<T> {
           callback_data: btn.callback_data,
         })),
         [{ text: `${this.current_index + 1}/${this.list.length}`, callback_data: 'number string' }],
-        ...(this.options.extraButtons.map((value) =>
+        ...(this.options.extraButtons?.map((value) =>
           value.map(({ callback_data, text, web_app }) => ({
             callback_data,
             text,
@@ -86,16 +86,29 @@ export class ListManager<T> {
       ],
     };
 
+    console.log(image);
+
     if (image) {
-      await this.ctx.replyWithPhoto(image, {
-        caption: text,
-        parse_mode: 'MarkdownV2',
-        reply_markup: inlineKeyboard,
-      });
+      await this.ctx
+        .replyWithPhoto(
+          { url: image },
+          {
+            caption: text,
+            parse_mode: 'HTML',
+            reply_markup: inlineKeyboard,
+          },
+        )
+        .catch(
+          async () =>
+            await this.ctx.reply(text, {
+              reply_markup: inlineKeyboard,
+              parse_mode: 'HTML',
+            }),
+        );
     } else {
       await this.ctx.reply(text, {
         reply_markup: inlineKeyboard,
-        parse_mode: 'MarkdownV2',
+        parse_mode: 'HTML',
       });
     }
   }
@@ -113,7 +126,7 @@ export class ListManager<T> {
           callback_data: btn.callback_data,
         })),
         [{ text: `${this.current_index + 1}/${this.list.length}`, callback_data: 'number string' }],
-        ...(this.options.extraButtons.map((value) =>
+        ...(this.options.extraButtons?.map((value) =>
           value.map(({ callback_data, text, web_app }) => ({
             callback_data,
             text,
@@ -125,12 +138,13 @@ export class ListManager<T> {
 
     try {
       if (image) {
+        console.log(image);
         await this.ctx.editMessageMedia(
           {
             type: 'photo',
-            media: image,
+            media: { url: image },
             caption: text,
-            parse_mode: 'MarkdownV2',
+            parse_mode: 'HTML',
           },
           {
             reply_markup: inlineKeyboard,
@@ -138,7 +152,7 @@ export class ListManager<T> {
         );
       } else {
         await this.ctx.editMessageText(text, {
-          parse_mode: 'MarkdownV2',
+          parse_mode: 'HTML',
           reply_markup: inlineKeyboard,
         });
       }
