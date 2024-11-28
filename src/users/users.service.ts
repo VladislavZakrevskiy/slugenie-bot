@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Permission, User } from '@prisma/client';
+import { Permission, Prisma, User, $Enums } from '@prisma/client';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { RegisterDto } from './dto/RegisterDto';
 import { compareSync, hashSync } from 'bcrypt';
+import { InputJsonValue } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class UserService {
@@ -48,7 +49,25 @@ export class UserService {
     return this.prisma.user.findMany();
   }
 
-  async updateUser(id: string, data: Partial<User>): Promise<User> {
+  async updateUser(
+    id: string,
+    data: {
+      id?: Prisma.StringFieldUpdateOperationsInput | string;
+      tg_user_id?: Prisma.StringFieldUpdateOperationsInput | string;
+      name?: Prisma.StringFieldUpdateOperationsInput | string;
+      surname?: Prisma.StringFieldUpdateOperationsInput | string;
+      email?: Prisma.StringFieldUpdateOperationsInput | string;
+      password?: Prisma.StringFieldUpdateOperationsInput | string;
+      adress?: Prisma.StringFieldUpdateOperationsInput | string;
+      phone_number?: Prisma.StringFieldUpdateOperationsInput | string;
+      role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role;
+      permission?: Prisma.EnumPermissionFieldUpdateOperationsInput | $Enums.Permission;
+      is_notifications?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+      preferences?: Prisma.NullableJsonNullValueInput | InputJsonValue;
+      animals?: Prisma.AnimalUpdateManyWithoutOwnerNestedInput;
+      publicated_animals?: Prisma.AnimalUpdateManyWithoutPublicaterNestedInput;
+    },
+  ): Promise<User> {
     return this.prisma.user.update({
       where: { id },
       data,

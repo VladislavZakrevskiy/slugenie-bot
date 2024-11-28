@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Animal, $Enums, User } from '@prisma/client';
+import { Animal, $Enums, User, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { AnimalFormDto } from './dto/AnimalFornDto';
 import { DogNormalizer, NormalizedDogChar } from './recomendations/DogNormalizer';
@@ -53,6 +53,7 @@ export class AnimalService {
     ownerId,
     publicaterId,
     notPublicaterId,
+    notOwnerId,
   }: {
     status?: $Enums.AnimalStatus;
     ownerId?: string;
@@ -60,17 +61,23 @@ export class AnimalService {
     skip?: number;
     publicaterId?: string;
     notPublicaterId?: string;
+    notOwnerId?: string;
   }): Promise<Animal[]> {
     return this.prisma.animal.findMany({
       take: limit,
       skip,
-      where: { status, ownerId, publicaterId: { not: notPublicaterId, equals: publicaterId } },
+      where: {
+        status,
+        ownerId: { equals: ownerId, not: notOwnerId },
+        publicaterId: { not: notPublicaterId, equals: publicaterId },
+      },
       orderBy: { createdAt: 'desc' },
+      include: { publicater: true },
     });
   }
 
   async getRandomAnimals({ limit = 10 }: { limit: number }): Promise<Animal[]> {
-    return await this.prisma.$queryRaw`SELECT * FROM public."Animal" BY RANDOM() LIMIT ${limit}`;
+    return await this.prisma.animal.findMany({ take: limit });
   }
 
   async getRecomendAnimal(user: User) {
@@ -101,7 +108,25 @@ export class AnimalService {
   }
 
   // Обновление животного
-  async updateAnimal(id: string, data: Partial<Animal>): Promise<Animal> {
+  async updateAnimal(
+    id: string,
+    data: {
+      id?: Prisma.StringFieldUpdateOperationsInput | string;
+      name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+      breed?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+      age?: Prisma.EnumAgeFieldUpdateOperationsInput | $Enums.Age;
+      size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size;
+      fur?: Prisma.EnumFurFieldUpdateOperationsInput | $Enums.Fur;
+      adress?: Prisma.StringFieldUpdateOperationsInput | string;
+      description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+      image_url?: Prisma.AnimalUpdateimage_urlInput | string[];
+      createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+      status?: Prisma.EnumAnimalStatusFieldUpdateOperationsInput | $Enums.AnimalStatus;
+      normilized_animal?: Prisma.JsonNullValueInput | Prisma.InputJsonValue;
+      owner?: Prisma.UserUpdateOneWithoutAnimalsNestedInput;
+      publicater?: Prisma.UserUpdateOneRequiredWithoutPublicated_animalsNestedInput;
+    },
+  ): Promise<Animal> {
     return this.prisma.animal.update({
       where: { id },
       data,

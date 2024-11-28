@@ -93,6 +93,7 @@ export class RegisterScene {
         tg_user_id: String(ctx.from.id),
         adress: state.adress,
         phone_number: state.phone_number,
+        username: ctx.from.username,
       };
 
       const registeredUser = await this.userService.registerUser(newUser);

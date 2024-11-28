@@ -30,7 +30,7 @@
     "@prisma/client": "^5.20.0",
     "@tensorflow-models/mobilenet": "^2.1.1",
     "@tensorflow/tfjs": "^4.21.0",
-    "@tensorflow/tfjs-node-gpu": "^4.21.0",
+    "@vladislav_zakrevskiy/telegraf-pagination": "^1.0.9",
     "axios": "^1.7.7",
     "bcrypt": "^5.1.1",
     "firebase-admin": "^12.6.0",
@@ -41,7 +41,8 @@
     "redis": "^4.7.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "telegraf-pagination": "^1.4.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

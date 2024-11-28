@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { Action, Ctx, Update } from 'nestjs-telegraf';
+import { Action, Ctx, InjectBot, Update } from 'nestjs-telegraf';
 import { UserService } from '../../users/users.service';
 import { AnimalService } from '../../animals/animals.service';
 import { SessionSceneContext } from 'src/types/Scenes';
 import { $Enums } from '@prisma/client';
 import { RedisService } from 'src/core/redis/redis.service';
 import { getRedisKeys } from 'src/core/redis/redisKeys';
-import { ListManager } from 'src/core/helpers/ListManager';
 import { getDefaultText } from 'src/core/helpers/getDefaultText';
 import { getTelegramImage } from 'src/core/helpers/getTelegramImage';
-import { CallbackQuery } from 'telegraf/typings/core/types/typegram';
+import { Pagination } from '@vladislav_zakrevskiy/telegraf-pagination';
+import { Telegraf } from 'telegraf';
 
 @Injectable()
 @Update()
@@ -18,6 +18,7 @@ export class UserProfileService {
     private userService: UserService,
     private animalService: AnimalService,
     private redis: RedisService,
+    @InjectBot() private bot: Telegraf,
   ) {}
 
   // ListManager and some data
@@ -25,17 +26,18 @@ export class UserProfileService {
     const currentIndex = Number(await this.redis.get(getRedisKeys('currentIndex_animal', type, ctx.chat.id)));
     const user_id = await this.redis.get(getRedisKeys('user_id', ctx.chat.id));
     const animals = await this.animalService.getAllAnimals({ status: type, publicaterId: user_id });
-    const listManager = new ListManager(
-      this.redis,
-      animals,
-      {
-        getText: (animal) => getDefaultText(animal),
-        getImage: async (order) => order.image_url[0],
-      },
-      ctx,
-      'currentIndex_animal',
-      type,
-    );
+    const listManager = new Pagination({
+      data: animals,
+      rowSize: 2,
+      format: (item) => getDefaultText(item),
+      onlyNavButtons: true,
+      isEnabledDeleteButton: false,
+      inlineCustomButtons: null,
+      messages: { firstPage: 'Это первая страница!', lastPage: 'Это последняя страница!', next: '➡️', prev: '⬅️' },
+      pageSize: 1,
+      getImage: async (item) => item.image_url[0],
+      header: (currentPage, pageSize, total) => `<code>${currentPage}/${total}</code>`,
+    });
 
     return { listManager, currentIndex, animals };
   }
@@ -72,7 +74,12 @@ export class UserProfileService {
       return;
     }
 
-    listManager.sendInitialMessage();
+    listManager.handleActions(this.bot);
+
+    const text = await listManager.text();
+    const keyboard = await listManager.keyboard();
+    const images = await listManager.images();
+    ctx.replyWithPhoto({ url: images[0] }, { caption: text, parse_mode: 'HTML', ...keyboard });
   }
 
   @Action('candidate_animals')
@@ -85,38 +92,11 @@ export class UserProfileService {
       return;
     }
 
-    listManager.sendInitialMessage();
-  }
+    listManager.handleActions(this.bot);
 
-  // TODO Next/prev
-  @Action(/^next_currentIndex_animal_.*/)
-  async next_animal(@Ctx() ctx: SessionSceneContext) {
-    const prefix = (ctx.callbackQuery as CallbackQuery.DataQuery).data.split('_')?.[3] as $Enums.AnimalStatus;
-    const { listManager, currentIndex, animals } = await this.getListManager(ctx, prefix);
-
-    console.log('next', currentIndex, animals.length);
-    if (currentIndex < animals.length - 1) {
-      console.log('1');
-      await this.redis.set(getRedisKeys('currentIndex_animal', listManager.prefix, ctx.chat.id), currentIndex + 1);
-      console.log('2');
-      await listManager.editMessage();
-      console.log('3');
-    } else {
-      await ctx.answerCbQuery('Нет следующего элемента');
-    }
-  }
-
-  @Action(/^prev_currentIndex_animal_.*/)
-  public async handlePrev(@Ctx() ctx: SessionSceneContext): Promise<void> {
-    const prefix = (ctx.callbackQuery as CallbackQuery.DataQuery).data.split('_')?.[3] as $Enums.AnimalStatus;
-    const { listManager, currentIndex } = await this.getListManager(ctx, prefix);
-
-    console.log('prev', currentIndex);
-    if (currentIndex > 0) {
-      await this.redis.set(getRedisKeys('currentIndex_animal', listManager.prefix, ctx.chat.id), currentIndex - 1);
-      await listManager.editMessage();
-    } else {
-      await ctx.answerCbQuery('Нет предыдущего элемента');
-    }
+    const text = await listManager.text();
+    const keyboard = await listManager.keyboard();
+    const images = await listManager.images();
+    ctx.replyWithPhoto({ url: images[0] }, { caption: text, parse_mode: 'HTML', ...keyboard });
   }
 }

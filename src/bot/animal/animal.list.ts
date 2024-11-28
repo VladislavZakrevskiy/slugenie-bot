@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { Action, Ctx, Update } from 'nestjs-telegraf';
+import { Action, Ctx, InjectBot, Update } from 'nestjs-telegraf';
 import { RedisService } from 'src/core/redis/redis.service';
 import { getRedisKeys } from 'src/core/redis/redisKeys';
 import { SessionSceneContext } from 'src/types/Scenes';
 import { AnimalService } from '../../animals/animals.service';
-import { ListManager } from 'src/core/helpers/ListManager';
-import { getDefaultText } from 'src/core/helpers/getDefaultText';
-import { $Enums } from '@prisma/client';
+import { $Enums, Animal } from '@prisma/client';
 import { DogRecommender } from '../../animals/recomendations/DogRecmender';
 import { UserService } from 'src/users/users.service';
 import { UserPreferences } from 'src/users/types/UserJson';
+import { getDefaultText } from 'src/core/helpers/getDefaultText';
+import { Telegraf } from 'telegraf';
+import { Pagination } from '@vladislav_zakrevskiy/telegraf-pagination';
 
 @Injectable()
 @Update()
@@ -19,6 +20,7 @@ export class AnimalList {
     private animalService: AnimalService,
     private dogRecommender: DogRecommender,
     private userService: UserService,
+    @InjectBot() private bot: Telegraf,
   ) {}
 
   async getListManager(ctx: SessionSceneContext) {
@@ -28,24 +30,27 @@ export class AnimalList {
     // @ts-ignore
     const json_settings = user?.preferences as UserPreferences;
     const user_preferences = json_settings ? json_settings : { breed: {}, size: {}, age: {}, fur: {} };
-
     const currentIndex = Number(await this.redis.get(getRedisKeys('currentIndex_animallist', 'list', ctx.chat.id)));
     const animals = await this.animalService.getAllAnimals({
       status: $Enums.AnimalStatus.AVAILABLE,
       notPublicaterId: user_id,
     });
     const rec_animals = this.dogRecommender.recommend(animals, user_preferences);
-    const listManager = new ListManager(
-      this.redis,
-      rec_animals,
-      {
-        getText: (animal) => getDefaultText(animal),
-        getImage: async (order) => order.image_url[0],
-      },
-      ctx,
-      'currentIndex_animallist',
-      'list',
-    );
+    const listManager = new Pagination<Animal>({
+      data: rec_animals,
+      rowSize: 2,
+      format: (item) => getDefaultText(item, false),
+      buttonModeOptions: { title: 'Забрать', titleKey: 'bring' },
+      onlyNavButtons: true,
+      isEnabledDeleteButton: false,
+      inlineCustomButtons: [
+        [{ callback_data: (currentAnimal) => 'bring:' + currentAnimal.id, text: 'Забрать!', hide: false }],
+      ],
+      messages: { firstPage: 'Это первая страница!', lastPage: 'Это последняя страница!', next: '➡️', prev: '⬅️' },
+      pageSize: 1,
+      getImage: async (item) => item.image_url[0],
+      header: (currentPage, pageSize, total) => `<code>${currentPage}/${total}</code>`,
+    });
 
     return { listManager, currentIndex, animals: rec_animals };
   }
@@ -59,33 +64,28 @@ export class AnimalList {
       return;
     }
 
-    listManager.sendInitialMessage();
+    listManager.handleActions(this.bot);
+
+    const text = await listManager.text();
+    const keyboard = await listManager.keyboard();
+    const images = await listManager.images();
+    ctx.replyWithPhoto({ url: images[0] }, { caption: text, parse_mode: 'HTML', ...keyboard });
   }
 
-  // List
-  @Action('next_currentIndex_animallist_list')
-  public async onNextAnimal(@Ctx() ctx: SessionSceneContext): Promise<void> {
-    console.log('next');
-    const { currentIndex, listManager, animals } = await this.getListManager(ctx);
+  @Action(RegExp('bring:(.+)'))
+  async bringAnimal(@Ctx() ctx: SessionSceneContext) {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const animal_id = (ctx.callbackQuery.data as string).split(':')[1];
+    const animal = this.animalService.getAnimalById(animal_id);
+    const user_id = await this.redis.get(getRedisKeys('user_id', ctx.from.id));
+    const user = await this.userService.getUserById(user_id);
 
-    if (currentIndex < animals.length - 1) {
-      await this.redis.set(getRedisKeys('currentIndex_animallist', 'list', ctx.chat.id), currentIndex + 1);
-      await listManager.editMessage();
-    } else {
-      await ctx.answerCbQuery('Нет следующего элемента');
-    }
-  }
+    await this.userService.updateUser(user_id, {
+      ...user,
+      animals: { connect: { id: animal_id } },
+    });
 
-  @Action('prev_currentIndex_animallist_list')
-  public async onPrevAnimal(@Ctx() ctx: SessionSceneContext): Promise<void> {
-    console.log('prev');
-    const { currentIndex, listManager } = await this.getListManager(ctx);
-
-    if (currentIndex > 0) {
-      await this.redis.set(getRedisKeys('currentIndex_animallist', 'list', ctx.chat.id), currentIndex - 1);
-      await listManager.editMessage();
-    } else {
-      await ctx.answerCbQuery('Нет предыдущего элемента');
-    }
+    await this.animalService.updateAnimal(animal_id, { ...animal, owner: { connect: { id: user_id } } });
   }
 }

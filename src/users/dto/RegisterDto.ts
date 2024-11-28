@@ -9,4 +9,5 @@ export interface RegisterDto {
   adress: string;
   phone_number: string;
   role: Role;
+  username: string;
 }
